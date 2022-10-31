@@ -1,0 +1,2098 @@
+<?php
+ include ("seguridad/seguridad.php");
+ include ("lib/BDDlib.php");
+ include ("lib/CFGlib.php");
+ 
+ $link = conectarBDD(); 
+ 
+ $permiso=consultaPermisoUsuario(111,$link);
+ 
+ $permisoAdd=$permiso[3];
+ 
+ if($permisoAdd==0){
+ echo "Conection error";
+ exit();	 
+ }
+ 
+ $bodega_movimiento_detalle=1;
+ $bodega_movimiento_detalle_pagina_inicial=1;
+ $bodega_movimiento_detalle_pagina_deshabilitar="";
+ $bodega_movimiento_detalle_pagina_numero_paginas=4;
+ 
+ /*
+ $rev=password_hash("rasmuslerdorf", PASSWORD_DEFAULT);
+ if(password_verify('rasmuslerdorf',$rev)){	 
+	 //echo "correcto";
+ }
+
+ echo hash('sha512',"test");
+*/		
+
+ if(isset($_GET["vrevselr"])){
+ $bodega_id=$_GET["vrevselr"];
+ }
+
+ $bodega_nombre=obtenerNombreBodegaCodigoBarras($bodega_id,$link);
+ 
+ $consecutivo=0;
+ 
+ $fecha=date("Y-m-d H:i:s");
+ $rusuario=$_SESSION['nombreuser'];
+ $mensaje_error="";
+ 
+     $query_codigo_barras="INSERT INTO movimiento_codigo_barras_temporal "
+    ."(MOVIMIENTO_CODIGO_BARRAS_TEMPORAL_FECHA ,"
+    ."MOVIMIENTO_CODIGO_BARRAS_TEMPORAL_TIPO,"
+    ."MOVIMIENTO_CODIGO_BARRAS_TEMPORAL_BODEGA,"
+    ."MOVIMIENTO_CODIGO_BARRAS_TEMPORAL_USUARIO ) "
+    ."VALUES ('$fecha',1,$bodega_id,'$rusuario');";
+    //echo $query_codigo_barras;
+    $resultado_query_codigo_barras=nmysql2_query($query_codigo_barras,$link);
+    
+      if(nmysql2_affected_rows($link)==0)
+      {
+      $control_reload[0] = 1;
+      $mensaje_error.="Connection error \n";
+      }
+      if(nmysql2_affected_rows($link)>0){
+      $consecutivo=nmysqli2_insert_id($link);      
+      }
+ 
+ if($consecutivo==0){
+ echo "Connection error";	 
+ exit;	 
+ }
+ 
+ $nombre_revplantilla="inventario_codigo_barras_add";
+
+ RetornoPlantilla("$nombre_revplantilla",0);
+ RegistrarIdRevPlantilla("$nombre_revplantilla",0);
+ 
+?>
+<html>
+<head>
+<title>iSupport - Customized for ESS ElectroSignSupply Corp.</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<style type="text/css">
+.oculto{
+
+}
+</style>
+<link href="recursos/css2/titulos.css" rel="stylesheet" type="text/css">
+<link href="recursos/css2/textos.css" rel="stylesheet" type="text/css">
+<link href="recursos/css2/input_type.css" rel="stylesheet" type="text/css">
+<link href="recursos/css/jquery-ui.min.css" rel="stylesheet" type="text/css">
+<link href="recursos/css2/calendario_jqueryui.css" rel="stylesheet" type="text/css">
+<style type="text/css">
+body {
+	background-color: white;
+}
+.form_barcode_v_emergente{
+background-color:white;
+border-collapse: collapse;
+border: 1px solid black;
+left:70%;
+position:fixed;
+z-index:0;
+border-radius: 5px; 
+-moz-border-radius: 5px;
+-webkit-border-radius: 5px;
+border: 1px solid #000000;
+}
+.form_barcode_v_emergente_titulo{
+background-color:white;
+border-collapse: collapse;
+border: 1px solid black;
+}
+.form_barcode_v_emergente_texto{
+background-color:white;
+color:blue;
+font-weight:bold;
+}
+.form_texto_informativo{
+font-size:14px;
+color:red;
+}
+.titulo_grupo{
+font-size:14px;
+color:blue;
+}
+.checklist_grupo{
+margin:10px;
+padding:10px;
+text-align:left;
+background-color:white;
+border-collapse: collapse;
+border: 1px solid blue;
+border-radius: 5px; 
+-moz-border-radius: 5px;
+-webkit-border-radius: 5px;
+}
+@font-face {
+  font-family: 'Code128';
+  src:  url('recursos/code128.woff2') format('woff2'),
+        url('recursos/code128.woff') format('woff');
+        
+}
+.vbarcode{
+border-collapse: collapse;
+border: 1px solid black;
+border-radius: 5px; 
+-moz-border-radius: 5px;
+-webkit-border-radius: 5px;
+}
+.titulo_texto {
+	margin-left:10%;
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 0.9em;
+	font-weight: bold;
+	text-decoration: underline overline;
+}
+.other_inf_texto {
+	font-size: 1.1em;
+	font-weight: bold;	
+}
+.other_inf_texto_label {
+	font-size:0.9em;
+	margin-left:0.3em;
+}
+.lista_item_seleccionado:hover{
+background-color:yellow;
+}.label_resumen{
+font-size: 1em;
+margin-right:0.5em;
+}
+</style>
+</head>
+<body>
+<script src="recursos/js/jquery-1.8.3.min.js"></script>
+<script src="recursos/js/B_code128.js"></script>
+<script src="recursos/js/lqr/jsQR.js"></script>
+<script src="recursos/js/jquery-ui.min.js"></script>
+<script src="recursos/js/calendario_jqueryui.js"></script>
+<script language="JavaScript">
+
+var salir_ventana=0;
+var e_barcode=0;
+var f_barcode;
+var revn1barcd=0;
+var rbusqueda=0;
+var r_articulo=0;
+var contr_cantidad = -1;
+var acantidades = [];
+var res_acantidades = [];
+var nval_acantidades = [];
+var mval_acantidades = [];
+var contr_estado = -1;
+var aestado = [];
+var res_aestado = [];
+var contr_sc = -1;
+var ares_sc = [];
+var ares_sc2 = [];
+var ares_sc3 = [];
+var ares_nvsr = [];
+var r_mb_f=<?php echo $bodega_movimiento_detalle;?>;
+var npagina=<?php echo $bodega_movimiento_detalle_pagina_inicial;?>;
+var vnpag=<?php echo $bodega_movimiento_detalle_pagina_numero_paginas;?>;
+var npagd=[<?php echo $bodega_movimiento_detalle_pagina_deshabilitar;?>];
+var estvcliente=0;
+var anlistitem=0;
+var anlistitem_total=0;
+
+var xhr1;
+var xhr2;
+    
+r_XMLHttpRequest();
+
+function r_XMLHttpRequest(){
+
+rcontenedor();
+
+xhr1=new XMLHttpRequest();
+
+xhr1.onreadystatechange=function(){
+
+	if(xhr1.readyState==4){
+	$("#etiqueta_barcode").html("");
+	 
+	 if(xhr1.response!="1"){
+	  	 
+	  if(xhr1.response=="2"){
+	  $("#mensaje_barcode").html("Invalid control number information");
+	  }
+	  else{
+	   if(xhr1.response=="3"){
+	   $("#mensaje_barcode").html("Error adding control number information");
+	   }
+	   else{
+	   $("#mensaje_barcode").html("Error adding article");			   
+	   }
+	  }
+	  
+	 }
+     else{
+	  if(xhr1.response=="1"){
+	  $("#mensaje_barcode").html("");			
+	  }
+	 }	 
+				
+	var valorbar=document.getElementById("barcode").value=""; 	
+	document.getElementById("barcode").readOnly=false;
+	document.getElementById("cantidad").value=1;
+		
+	revn1barcd=0;
+	rbusqueda=0;	
+	r_articulo=1;
+	
+	$("#e_existente").attr('checked',true);
+	$("#e_nuevo").attr('checked',false);	
+	$("#e_usado").attr('checked',false);
+	$("#barcode").show();				
+	$("#barcode_required").show();
+	
+	cargar_listado_total();
+	
+	cargar_listado();
+
+	r_XMLHttpRequest();
+		
+	}
+			
+}
+	
+	
+}
+
+function r_XMLHttpRequest2(){
+
+var mensaje2="";
+
+xhr2=new XMLHttpRequest();
+
+var form_data7 = new FormData();
+form_data7.append('consulta', 48); 
+form_data7.append('num1','<?php echo $consecutivo;?>');
+
+xhr2.open('POST','modelo_articulo_codigo_barras.php',true);
+xhr2.send(form_data7);	
+
+xhr2.onreadystatechange=function(){
+
+	if(xhr2.readyState==4){
+		
+	var res_xhr2=xhr2.response;
+	 if(res_xhr2=="0"){
+	 mensaje2+="Item validation error\n";
+	 }
+     else{
+	  if(res_xhr2=="-1"){
+	  mensaje2+="You not add article to input\n";
+	  }
+	  else{
+		if(res_xhr2=="-2"){
+		mensaje2+="You must complete in other information of article the expire date\n";
+		}		  
+	  }
+	 }	 
+	 
+	var no_documento=document.getElementById("documento").value;
+	no_documento=no_documento.trim();
+
+	if(no_documento==""){
+	mensaje2+="You must enter the document\n";
+	}
+
+	var documento_fecha=document.getElementById("documento_fecha").value;
+	documento_fecha=documento_fecha.trim();
+
+	if(documento_fecha==""){
+	mensaje2+="You must enter the document date\n";
+	}	
+	
+	if(mensaje2==""){
+	var mensaje="";
+	
+ //validador de estado guardado
+        if(mensaje==""){
+			document.getElementById("barcode").readOnly=true;
+			clearInterval(f_barcode);
+			$("#barcode").css({"background-color":"rgb(200,200,200)"});
+            mostrar_cargando(1);     
+            salir_ventana=1;
+            document.formu.action = "inventario_codigo_barras_add_save.php";
+            document.formu.submit();
+        }
+	else{
+	 alert(mensaje);
+    }
+
+	}
+	else{
+	alert(mensaje2);
+	ocultar_cargando(0);
+    }
+				
+	}
+			
+}
+	
+	
+}
+
+function r2_XMLHttpRequest(nrev){
+
+acantidades[nrev]=new XMLHttpRequest();
+
+acantidades[nrev].onreadystatechange=function(){
+	if(acantidades[nrev].readyState==4){
+	
+	$("#mensaje_barcode").html("");				
+	
+	res_acantidades[nrev]=acantidades[nrev].response;
+	var resultado=acantidades[nrev].response;
+	var vacantidad=nval_acantidades[nrev];
+	var macantidad=mval_acantidades[nrev];
+	
+	resultado=resultado.split("@");	
+	
+	if(resultado.length==1){
+		
+	 if(res_acantidades[nrev]=="0"){
+	 //$("#mensaje_barcode").html("Error editing article");			
+	 $("#cant"+macantidad).hide();	 
+	 document.getElementById('cant'+macantidad).value=vacantidad;	 
+	 $("#clabel"+macantidad).show();	 
+	 alert("Error editing article quantity");
+	 }
+	 else{
+	 //$("#mensaje_barcode").html("Error editing article");			
+	 $("#cant"+macantidad).hide();	 
+	 document.getElementById('cant'+macantidad).value=vacantidad;	 
+	 $("#clabel"+macantidad).show();	 
+	 alert("Error editing article quantity");		  
+	 }
+	
+	}
+	else{
+	  if(resultado[0]=="1"){
+	  $("#cant"+macantidad).hide();
+	  document.getElementById('cant'+macantidad).value=resultado[1];
+	  $("#clabel"+macantidad).html(resultado[1]);
+	  $("#clabel"+macantidad).show();
+	  $("#mensaje_barcode").html("");				
+	  }
+      else{
+			 //$("#mensaje_barcode").html("Error editing article");			
+			 $("#cant"+macantidad).hide();	 
+			 document.getElementById('cant'+macantidad).value=vacantidad;	 
+			 $("#clabel"+macantidad).show();	 
+			 alert("Error editing article");
+      }	  	  
+	}
+	
+	document.getElementById('cant'+macantidad).disabled=false;
+	
+	}
+}	
+	
+}
+
+function r3_XMLHttpRequest(nrev,nrev2){
+
+aestado[nrev]=new XMLHttpRequest();
+
+aestado[nrev].onreadystatechange=function(){
+	if(aestado[nrev].readyState==4){
+
+    //$("#mensaje_barcode").html("");				
+	
+	res_aestado[nrev]=aestado[nrev].response;
+	 if(res_aestado[nrev]=="0"){
+	 //$("#mensaje_barcode").html("Error editing article status");
+	 alert("Error editing article status");
+	 }
+	 else{
+	  if(res_aestado[nrev]=="1"){
+	  //$("#mensaje_barcode").html("");
+	  }
+	  else{
+	  //$("#mensaje_barcode").html("Error editing article status");
+	  alert("Error editing article status");		  
+	  }
+	 }
+	document.getElementById("e_nuevo"+nrev2).disabled=false;
+	document.getElementById("e_usado"+nrev2).disabled=false;
+	document.getElementById("e_existente"+nrev2).disabled=false;
+	}
+}	
+	
+}
+
+function rev_XMLHttpRequest(nrev,nrev2,nrev3,nrev4,nrev5,nrev6,nrev7){
+
+var form_data6 = new FormData();
+ares_sc[nrev] = [];
+ares_sc[nrev][0] = new XMLHttpRequest();
+ares_sc2[nrev] = 0;
+ares_sc3[nrev] = nrev2;
+
+form_data6.append('consulta', 44); 
+form_data6.append('num1','<?php echo $consecutivo;?>'); 
+form_data6.append('num2',nrev2);
+form_data6.append('num3',nrev3);
+form_data6.append('num4',nrev4);
+form_data6.append('num5',nrev5);
+form_data6.append('num6',nrev6);
+form_data6.append('num7',nrev7);
+
+ares_sc[nrev][1] = nrev3;
+
+if(nrev3==0){
+ares_sc[nrev][2] = $("#lf1_a"+nrev2).text();
+}
+if(nrev3==1){
+if(nrev5==0){
+ares_sc[nrev][2] = $("#ls1_a"+nrev2).text();
+}
+if(nrev5==1){
+ares_sc[nrev][2] = $("#ls2_a"+nrev2).text();
+}
+}
+if(nrev3==3){
+ares_sc[nrev][2] = $("#llot_a"+nrev2).text();
+}
+
+ares_sc[nrev][3] = nrev2;
+ares_sc[nrev][4] = 0;
+ares_sc[nrev][5] = 0;
+ares_sc[nrev][6] = nrev5;
+
+ares_sc[nrev][0].open('POST','modelo_articulo_codigo_barras.php',true);
+ares_sc[nrev][0].send(form_data6); 
+
+ares_sc[nrev][0].onreadystatechange=function(){
+	
+	if(ares_sc[nrev][0].readyState==4){
+	ares_sc[nrev][4]=ares_sc[nrev][0].response;
+	var resultado=ares_sc[nrev][0].response;
+	var vnares_sc=ares_sc[nrev][1];
+	var vares_sc=ares_sc[nrev][2];
+	var mares_sc=ares_sc[nrev][3];
+	var mensaje_error=[];
+	var vitem;
+	var citem;
+	var citem2;
+	mensaje_error[0]=[];
+	mensaje_error[0][0]="Error editing expire date";
+	mensaje_error[1]=[];
+	mensaje_error[1][0]="Error editing serial "+(parseInt(ares_sc[nrev][6])+1);
+	mensaje_error[2]=[];
+	mensaje_error[2][0]="Error editing inventory entry date";
+	mensaje_error[3]=[];
+	mensaje_error[3][0]="Error editing lot";
+	mensaje_error[4]=[];
+	mensaje_error[4][0]="Error editing expire date";
+	mensaje_error[5]=[];
+	mensaje_error[5][0]="Error editing serial";	
+	
+	resultado=resultado.split("-/-/#/@/#/-/-");	
+	
+	if(vnares_sc==0){
+	citem='f1_a'+mares_sc;
+	citem2='lf1_a'+mares_sc;
+	vitem=document.getElementById(citem).value;
+	}
+	if(vnares_sc==1){
+    if(ares_sc[nrev][6]==0){		
+	citem='s1_a'+mares_sc;
+	citem2='ls1_a'+mares_sc;
+	vitem=document.getElementById(citem).value;
+	}
+    if(ares_sc[nrev][6]==1){		
+	citem='s2_a'+mares_sc;
+	citem2='ls2_a'+mares_sc;
+	vitem=document.getElementById(citem).value;
+	}
+	}
+	if(vnares_sc==3){
+	citem='lot_a'+mares_sc;
+	citem2='llot_a'+mares_sc;
+	vitem=document.getElementById(citem).value;
+	}
+	
+	if(resultado.length==1){		
+	 if(ares_sc[nrev][4]=="0"){
+	 ajestado(vnares_sc,1,1,mares_sc,vares_sc,ares_sc[nrev][6]);
+	 alert(mensaje_error[vnares_sc][0]);	 
+	 }
+	 else{
+	 }	 
+	
+	}
+	else{	
+	  if(resultado[0]=="1"){
+	   document.getElementById(citem).value=resultado[1];
+	   $("#"+citem2).html(resultado[1]);
+	   ajestado(vnares_sc,0,1,mares_sc,vares_sc,ares_sc[nrev][6]);
+       //alert(resultado);	   
+	  }
+	  else{
+		  
+	  }	
+	}
+	
+	ares_sc2[nrev]=ares_sc[nrev][0].response;
+    ares_sc[nrev][5]=1;
+	aeother(vnares_sc,ares_sc[nrev][6],1,mares_sc);
+	}
+}        
+
+
+}
+restringir_salida_ventana();
+window.onload = function () {
+ocultar_cargando();	
+rcontenedor();
+apagina();
+sel_barcode();
+
+f_barcode=setInterval("sel_barcode()",1000); 
+
+    if (typeof history.pushState === "function") {
+        history.pushState("jibberish", null, null);
+        window.onpopstate = function () {
+            history.pushState('newjibberish', null, null);
+            // Handle the back (or forward) buttons here
+            // Will NOT handle refresh, use onbeforeunload for this.
+        };
+    }
+    else {
+        var ignoreHashChange = true;
+        window.onhashchange = function () {
+            if (!ignoreHashChange) {
+                ignoreHashChange = true;
+                window.location.hash = Math.random();
+                // Detect and redirect change here
+                // Works in older FF and IE9
+                // * it does mess with your hash symbol (anchor?) pound sign
+                // delimiter on the end of the URL
+            }
+            else {
+                ignoreHashChange = false;   
+            }
+        };
+    }
+    
+const busq1_paste = document.getElementById('vlnombre');
+
+busq1_paste.addEventListener('paste', (event) => {
+
+setTimeout(function(){ busq_lista(); }, 300);
+
+});
+    
+const busq2_paste = document.getElementById('vlencargado');
+
+busq2_paste.addEventListener('paste', (event) => {
+
+setTimeout(function(){ busq_lista(); }, 300);
+
+});
+
+restringir_salida_ventana();
+window.location.hash="Again-No-back-button";
+window.onhashchange=function(){window.location.hash="no-back-button";};
+}
+window.onscroll = function() {	
+rmenu();
+} 
+function restringir_salida_ventana(){
+window.onbeforeunload=function(){
+if(salir_ventana==0){
+ return 'Exit page';
+}
+}; 
+}  
+function cargarTercero(tipo){
+//no se usa por cuadro de dialogo de busqueda con opciones diferentes
+                 if(tipo==2){
+                 var datos={"tipo":2,"consulta":46};
+                 }
+                 if(tipo==1){
+                 var datos={"tipo":1,"consulta":46};
+                 }
+                $.ajax({
+                    data:datos,
+                    type:"post",
+                    url:"modelo_articulo_codigo_barras.php",
+                    beforeSend: function () {
+                    $("#tipo_tercero").html("Cargando...");
+                    },success: function (data) {
+                     $("#tipo_tercero").html(data);
+                     }                 
+                });                  
+}
+$(document).ready(function(){
+   $("#opcion_proveedor").change(function(){
+     if($('#opcion_proveedor').is(':checked')){
+     document.getElementById("tpterc").value=2;
+     //cargarTercero(2);
+     }
+   });
+   $("#opcion_cliente").change(function(){
+     if($('#opcion_cliente').is(':checked')){
+     document.getElementById("tpterc").value=1;
+     //cargarTercero(1);
+     }
+   });
+   est_control_jqueryui_fecha(1,"documento_fecha");
+});
+function busq_lista(){
+
+var valor_nomb=document.getElementById("vlnombre").value;
+var valor_encarg=document.getElementById("vlencargado").value;
+var valor_tipo=document.getElementById("tpterc").value;
+
+var form_data1 = new FormData();
+var XMLRequest = new XMLHttpRequest();
+
+form_data1.append('consulta', 81);  
+form_data1.append('num1',valor_nomb);
+form_data1.append('num2',valor_encarg);
+form_data1.append('num3',valor_tipo);
+form_data1.append('num4','2');
+
+XMLRequest.open('POST','modelo_articulo_codigo_barras.php',true);
+XMLRequest.send(form_data1);
+
+XMLRequest.onreadystatechange=function(){
+ if(XMLRequest.readyState==4){
+ var respuesta=XMLRequest.response;
+  if(respuesta.length==1){
+   if(respuesta=="0"){
+   $("#contenedor_slist_cliente").html("<label class=\"textConNegrilla\" style=\"color:red;\">Connection error</label>");
+   }
+   else{
+    if(respuesta=="1"){
+    $("#contenedor_slist_cliente").html("<label class=\"textConNegrilla\">No records...</label>");
+    }	   
+   }
+  }
+  else{
+  $("#contenedor_slist_cliente").html(respuesta);	  
+  }
+ if(estvcliente==0){
+ ocultar_cargando(0);
+ $("#contenedor_cliente").show();
+ }
+ estvcliente=1;
+ }
+}
+	
+}
+function restringir_salida_ventana(){
+window.onbeforeunload=function(){
+if(salir_ventana==0){
+ return 'Exit page';
+}
+}; 
+}
+ function msiguiente(){
+ if(rev_XML()){
+  if(validar()){	
+  npagina+=1;
+  apagina();  
+  }
+ } 
+ } 
+ function matras(){
+ if(rev_XML()){	 
+  if(validar()){
+  npagina-=1;
+  apagina();
+  }
+ }
+ } 
+ function apagina(){
+  if(npagina==1){
+  $('#t_listado').hide();
+  $('#contenedor').hide();
+  $('#contenedor_f2').hide();
+  $('#contenedor_barcode').hide();
+  $('#listado_items_p').hide();
+  $('#contenedor_f1').show();
+  $('#ocultar_teclado').show();
+  }
+  if(npagina==2){
+  $('#contenedor_f2').hide();	  
+  $('#contenedor_f1').hide();
+  $('#t_listado').show();
+  $('#contenedor').show();
+  $('#ocultar_teclado').hide();
+  $('#contenedor_barcode').show();
+  $('#listado_items_p').hide();
+  
+  $('#listado_items_p_t').css('position','relative');
+  $('#botones').hide();
+  $('#boton_total_atras').show();
+  $('#boton_total_siguiente').show();
+  
+  $('#contenedor_f1').hide();
+  //$('#contenedor_barcode').hide();
+  $('#contenedor_f2').hide();
+  $('#listado_items_p').hide();
+  $('#listado_items_p_t').show();
+  $('#ocultar_teclado').show();
+  
+  }
+  if(npagina==3){
+  $('#contenedor_f1').hide();  	  
+  $('#contenedor_barcode').hide();
+  $('#contenedor_f2').hide();
+  
+  $('#listado_items_p').css('position','relative');
+  $('#botones').hide();
+  
+  $('#listado_items_p_t').hide();
+  $('#listado_items_p').show();
+  $('#ocultar_teclado').show();
+  }
+  if(npagina==4){
+  $('#contenedor_f1').hide();  	  
+  $('#contenedor_barcode').hide();
+  $('#listado_items_p').hide();
+  $('#listado_items_p_t').hide();
+  $('#contenedor_f2').show();	  
+  $('#ocultar_teclado').show();
+  
+  $('#listado_items_p_t').css('position','relative');
+  $('#listado_items_p_t').show();
+  $('#boton_total_atras').hide();
+  $('#boton_total_siguiente').hide();
+  
+  comp_resumen();
+  
+  $('#botones').show();
+  }  
+  if(npagina==5){
+  }
+ window.scrollTo(0, 0);
+ rcontenedor();
+ aj_bot();
+ cargar_listado_total();
+ ajbotonlist(0);
+ anlistitem=$("#titulo_listado_items_p").width();
+ anlistitem_total=$("#titulo_listado_items_p_t").width();
+ }
+ function validar(){
+ var mensaje=""; 
+ var c_document=document.getElementById("documento").value;
+ 
+  if(npagina==1){
+   if(vTextoLenguaje("documento",c_document)){
+    if(vTextoFormato("documento",c_document)){		
+    }
+    else{
+    mensaje+="Error in code character no allow\n";
+    }
+   }
+   else{   
+   mensaje+="Error in code languaje no allow\n";
+   }
+  }
+  if(npagina==2){
+
+  }
+ 
+  if(mensaje==""){
+  return true;
+  }
+  else{
+  return false;
+  }
+  
+ }
+function aj_bot(){
+var v_vnpag=false;
+  if(npagina==1){
+  $("#bsiquiente").show();
+  $("#batras").hide();  
+  $("#bguardar").hide();
+  $("#bsiquiente2").show();
+  $("#batras2").hide();      
+  $("#bsiquiente3").show();
+  $("#batras3").hide();
+  }
+  else{
+  if((npagina>1)&&(npagina<=(vnpag-1))){
+
+  $("#batras").hide();    
+  $("#bguardar").hide();	  
+  $("#bsiquiente").show();  
+  $("#batras2").hide();    
+  $("#bsiquiente2").show();
+  $("#batras3").hide();    
+  $("#bsiquiente3").show();
+  
+    
+  for(i=0;i<npagd.length;i++){
+   if((npagina-1)==parseInt(npagd[i])){
+   v_vnpag=true;
+   }
+  }	
+	
+  if(v_vnpag==false){
+  $("#batras").show();
+  $("#batras2").show();
+  $("#batras3").show();
+  }
+
+  }
+  else{
+   if(npagina==vnpag){
+   $("#bsiquiente").hide();
+   $("#batras").show();  
+   $("#bguardar").show();
+   $("#bsiquiente2").hide();
+   $("#batras2").show();     
+   $("#bsiquiente3").hide();
+   $("#batras3").show();   
+   }
+  }
+ }
+}
+function esok(valor) { 
+
+ if ( valor == 1 ) {
+	mostrar_cargando(0);
+	r_XMLHttpRequest2();
+ }
+ 
+ }
+ function mostrar_cargando(valor){
+ if(valor==1){ 
+ quitar_botones();
+ }
+ $("#mensaje_cargando").show();
+ }
+ function ocultar_cargando(valor){
+ if(valor==1){ 	 
+ mostrar_botones();	 
+ }
+ $("#mensaje_cargando").hide();
+ }
+ function mdatos_articulo(){
+ var valorbar=document.getElementById("barcode").value;  
+ if(valorbar!=""){
+ if(rbusqueda==0){
+ mostrar_cargando(0);	 
+ document.getElementById("barcode").readOnly=true; 
+ var artestado;
+ var cart=document.getElementById('cantidad').value;
+ var barcode=document.getElementById("barcode").value;
+ barcode=barcode.trim().toUpperCase();
+ if($('#e_nuevo').is(':checked')){
+ art_est=1;
+ }	
+ if($('#e_usado').is(':checked')){
+ art_est=2;
+ }
+ if($('#e_existente').is(':checked')){
+ art_est=3;
+ }
+ $("#mensaje_barcode").html("");  
+ $("#barcode").hide();
+ $("#barcode_required").hide();
+ $("#etiqueta_barcode").html(valorbar);
+ 
+ rbusqueda=1;
+
+  var form_data = new FormData();
+  var form_data_2 = new FormData();
+  form_data.append('consulta', 22);  
+  form_data.append('queryString', barcode);   
+  form_data.append('num1','<?php echo $consecutivo;?>');
+  form_data.append('queryString2','<?php echo $bodega_id;?>');
+  
+  form_data_2.append('consulta', 26);  
+  form_data_2.append('queryString', barcode);   
+  form_data_2.append('num1','<?php echo $consecutivo;?>');
+  form_data_2.append('queryString2','<?php echo $bodega_id;?>');
+
+  form_data_2.append('num2', art_est);
+  form_data_2.append('num3', cart);
+  
+  $.ajax({
+  url: 'modelo_articulo_codigo_barras.php',
+  dataType: 'text',
+  cache: false,
+  contentType: false,
+  processData: false,
+  data: form_data,
+  type: 'post',
+  success: function(php_script_response){
+  var resultado=php_script_response;
+  resultado=resultado.split("@");
+  //alert(php_script_response);
+  
+  if(resultado.length==1)
+  {
+   if(php_script_response==-2){
+  document.getElementById("barcode").readOnly=false;
+   $("#etiqueta_barcode").html("");
+   $("#barcode").val("");   
+   $("#barcode").show();
+   $("#mensaje_barcode").html("The barcode " + barcode + " is inactive ");
+   }	  
+   if(php_script_response==-1){
+  document.getElementById("barcode").readOnly=false;
+   $("#etiqueta_barcode").html("");
+   $("#barcode").val("");   
+   $("#barcode").show();
+   $("#mensaje_barcode").html("The barcode " + barcode + " is not registered ");
+   }
+   if(php_script_response==0){
+   document.getElementById("barcode").readOnly=false;	   
+   $("#etiqueta_barcode").html("");
+   $("#barcode").val("");
+   $("#barcode").show();
+   $("#mensaje_barcode").html("Can not check the article " + barcode);
+   }
+  ocultar_cargando(0); 
+  }
+  else{
+   if((resultado.length==2)&&(revn1barcd==0)){
+    revn1barcd=1;
+	r_articulo=0;
+	xhr1.open('POST','modelo_articulo_codigo_barras.php',true);
+	xhr1.send(form_data_2);	
+	
+    /*document.formu.action = "inventario_codigo_barras_add_save.php";
+    document.formu.submit();*/
+	
+    }
+	else{
+	ocultar_cargando(0);
+	}
+   }
+   
+  rbusqueda=0;  
+  
+  }
+  }); 
+  
+ }
+  
+ }
+ 
+ }
+ function sel_barcode(){
+  if(e_barcode==0){
+  document.getElementById("barcode").focus();
+  }
+ } 
+ function mostrar_botones(){
+ $("#botones").show();
+ }
+ function quitar_botones(){
+ $("#botones").hide();
+ }
+ function cerrar_ventana(num){
+  if(num==1){
+  $("#contenedor_agregar_grupo").hide();
+  }
+ }
+ function vTextoLenguaje(ncampo,texto){
+ 	var texto_validado=texto;	
+	for(m=0;m<texto_validado.length;m++){
+	codigo_texto=texto_validado.charCodeAt(m);
+	 if((codigo_texto<0)||(codigo_texto>255)){
+	 alert("You did not input a english character in "+ncampo+", chinese language not allow");  
+	 return false;
+	 }
+	}
+ return true;	
+ }
+ function vTextoFormato(ncampo,texto){
+ 	var texto_validado=texto;	
+	for(m=0;m<texto_validado.length;m++){
+	codigo_texto=texto_validado.charCodeAt(m);
+	 if((codigo_texto==13)||(codigo_texto==9)||(codigo_texto==11)){
+	 alert("You did not input a invalid character in "+ncampo+", please check, tabulations or line breaks are not allowed");
+	 return false;
+	 }
+	}
+ return true;	
+ }
+ function vNumero(ncampo,texto){
+ 	var texto_validado=texto;	
+	for(m=0;m<texto_validado.length;m++){
+	codigo_texto=texto_validado.charCodeAt(m);
+	 if((codigo_texto<48)||(codigo_texto>57)){
+	 alert("You did not input a invalid number in "+ncampo+", please check, only input numbers is allowed");  
+	 return false;
+	 }
+	}
+ return true;	
+ } 
+ function cargar_listado(){
+ mostrar_cargando(0);	 
+  var form_data = new FormData();
+  form_data.append('consulta', 27);
+  form_data.append('num1','<?php echo $consecutivo;?>');
+  $.ajax({
+  url: 'modelo_articulo_codigo_barras.php',
+  dataType: 'text',
+  cache: false,
+  contentType: false,
+  processData: false,
+  data: form_data,
+  type: 'post',
+  success: function(php_script_response){
+   if(php_script_response==""){
+	$("#mensaje_barcode").html("Error adding items to the list");
+   }
+   if(php_script_response=="1"){
+	$("#listado_items").html("");
+   }
+   if((php_script_response!="")&&(php_script_response!="1")){
+	$("#listado_items").html(php_script_response);
+   }
+  ocultar_cargando(0);
+  }
+  }); 
+ }
+ function cargar_listado_total(){
+ mostrar_cargando(0);	 
+  var form_data = new FormData();
+  form_data.append('consulta', 77);
+  form_data.append('num1','<?php echo $consecutivo;?>');
+  $.ajax({
+  url: 'modelo_articulo_codigo_barras.php',
+  dataType: 'text',
+  cache: false,
+  contentType: false,
+  processData: false,
+  data: form_data,
+  type: 'post',
+  success: function(php_script_response){
+   if(php_script_response==""){
+	$("#mensaje_barcode").html("Error adding items to the total list");
+   }
+   if(php_script_response=="1"){
+	$("#listado_items_t").html("");
+   }
+   if((php_script_response!="")&&(php_script_response!="1")){
+	$("#listado_items_t").html(php_script_response);
+   }
+  ocultar_cargando(0);
+  }
+  }); 
+ } 
+ function mcantidad(num1){
+ $("#clabel"+num1).hide();
+ $("#cant"+num1).show();
+ $("#cant"+num1).focus();
+ pescaneo(1);
+ }
+ function gcantidad(nrev){
+ var form_data_3 = new FormData();
+ var cant_r=document.getElementById('cant'+nrev).value;
+ 
+ if(cant_r.trim()==""){
+ alert("The quantity is required");
+ return;
+ }
+ if(vNumero("quantity",cant_r)){
+  if(parseInt(cant_r)<1){
+  alert("The quantity must be greater than 0");	
+  return;
+  }
+ }else{
+ return;	
+ } 
+ 
+ document.getElementById('cant'+nrev).disabled=true;
+ 
+ form_data_3.append('consulta', 28);  
+ form_data_3.append('num1','<?php echo $consecutivo;?>');
+ form_data_3.append('num2',nrev);
+ form_data_3.append('num3',cant_r); 
+ contr_cantidad+=1;
+ res_acantidades[contr_cantidad]=0;
+ r2_XMLHttpRequest(contr_cantidad);
+ nval_acantidades[contr_cantidad] = parseInt($("#clabel"+nrev).text());
+ mval_acantidades[contr_cantidad] = nrev;
+ acantidades[contr_cantidad].open('POST','modelo_articulo_codigo_barras.php',true);
+ acantidades[contr_cantidad].send(form_data_3);
+ }
+ function cescaneo(num){
+ if(rev_XML(num)){
+ 
+ cargar_listado();
+ sel_barcode(); 
+ document.getElementById("barcode").readOnly=false;
+ $("#bc_escaneo").hide();
+ $("#barcode").css({"background-color":"white"});
+
+ if(num==1){
+ $("#invart_tabla2").hide();	 
+ $("#invart_tabla1").show();	 
+ rcontenedor();
+ }	 
+
+ f_barcode=setInterval("sel_barcode()",1000);
+ }
+ 
+ }
+ function pescaneo(num){
+ document.getElementById("barcode").readOnly=true;
+ clearInterval(f_barcode);
+ $("#barcode").css({"background-color":"rgb(200,200,200)"});
+ $("#bc_escaneo").show();
+ /*
+ if(num==1){
+ $("#invart_tabla1").hide();	 
+ $("#invart_tabla2").show();
+ rcontenedor();
+ }	 
+*/
+ }
+ function qitem(num){
+ mostrar_cargando(0);	 
+  var form_data = new FormData();
+  form_data.append('consulta', 29);
+  form_data.append('num1','<?php echo $consecutivo;?>');
+  form_data.append('num2',num);
+  $.ajax({
+  url: 'modelo_articulo_codigo_barras.php',
+  dataType: 'text',
+  cache: false,
+  contentType: false,
+  processData: false,
+  data: form_data,
+  type: 'post',
+  success: function(php_script_response){
+   if(php_script_response=="0"){
+	$("#mensaje_barcode").html("Error remove items to the list");
+   }
+   if(php_script_response=="1"){
+   $("#mensaje_barcode").html("");	   	
+   }
+   cargar_listado();   
+  }
+  });  	 
+ }
+ function rcontenedor(){
+ var p_docHeight=$(document).height();
+ var divpos=$("#contenedor").height();
+ var divpos2=$("#contenedor").width();
+ var divajuste=(parseInt(divpos2)*8)/100;
+ var divboton=parseInt($(document).width())-40;
+ divpos2-=divajuste;
+ $('#ocultar_teclado').css({'left':divboton});
+ var contenedorajuste=parseInt(p_docHeight)-parseInt(divpos);
+ contenedorajuste=contenedorajuste-(contenedorajuste*0.02);
+ //$('#contenedor').css({'margin-top':contenedorajuste});
+ //$('#listado_items').css({'width':divpos2,'padding-bottom':divpos+5}); 
+ //$('#listado_items').css({'width':divpos2,'margin-top':divpos}); 
+ //alert(contenedorajuste);
+ 
+ }
+ function gestado(nrevn,nrevn2){
+ document.getElementById("e_nuevo"+nrevn).disabled=true;
+ document.getElementById("e_usado"+nrevn).disabled=true;
+ document.getElementById("e_existente"+nrevn).disabled=true;
+ 
+ var form_data_4 = new FormData();
+ form_data_4.append('consulta', 32);  
+ form_data_4.append('num1','<?php echo $consecutivo;?>');
+ form_data_4.append('num2',nrevn);
+ form_data_4.append('num3',nrevn2);
+ contr_estado+=1;
+ res_aestado[contr_estado]=0;
+ r3_XMLHttpRequest(contr_estado,nrevn);
+ aestado[contr_estado].open('POST','modelo_articulo_codigo_barras.php',true);
+ aestado[contr_estado].send(form_data_4);
+ }
+ function gother(num,num2,num3,num4,num5){
+ var mensaje="";	 
+ var vnsc;
+ 
+ if(num2==0){ 
+ vnsc=document.getElementById('f1_a'+num).value;
+ vnsc=vnsc.trim(); 
+  if(vnsc==""){
+  mensaje+="You must enter a expiration date\n";
+  } 
+ }
+
+  if(num2==1){
+  if(num3==0){
+  vnsc=document.getElementById('s1_a'+num).value;
+  vnsc=vnsc.trim();
+  /*if(vnsc==""){
+  mensaje+="You must enter a serial\n";
+  }*/
+  }  
+  if(num3==1){
+  vnsc=document.getElementById('s2_a'+num).value;
+  vnsc=vnsc.trim(); 
+  /*if(vnsc==""){
+  mensaje+="You must enter a serial\n";
+  }*/
+  }  
+ }
+ 
+ if(num2==3){ 
+ vnsc=document.getElementById('lot_a'+num).value;
+ vnsc=vnsc.trim(); 
+  /*if(vnsc==""){
+  mensaje+="You must enter a lot\n";
+  }*/
+ }
+ 
+ if(mensaje==""){
+ aeother(num2,num3,0,num);
+ contr_sc+=1;
+ rev_XMLHttpRequest(contr_sc,num,num2,vnsc,num3,num4,num5);	 
+ }
+ else{
+ alert(mensaje);
+ }
+ 
+ }
+ function mother(num,num2,num3){
+	 pescaneo(1);	 
+	 if(num2==0){
+ 	  $("#cf1_a"+num).hide();
+	  $("#f1_a"+num).show();
+	  $("#f1_a"+num).focus();
+	 }
+	 if(num2==1){
+	  if(num3==0){	 
+ 	  $("#cs1_a"+num).hide();
+	  $("#s1_a"+num).show();
+	  $("#s1_a"+num).focus();
+	  }
+	  if(num3==1){	 
+ 	  $("#cs2_a"+num).hide();
+	  $("#s2_a"+num).show();
+	  $("#s2_a"+num).focus();
+	  }
+	 }
+	 if(num2==3){
+ 	 $("#clot_a"+num).hide();
+	 $("#lot_a"+num).show();
+	 $("#lot_a"+num).focus();
+	 }	 
+ }	  
+ function rother(num,num2,num3){
+	 var vrev=false;
+	  for(i=0;i<ares_sc3.length;i++){
+	   if(ares_sc3[i]==num){		   
+		if(ares_sc2[i]==0){
+		vrev=true;
+		}
+	   }
+	  }
+	 if(vrev==false){
+	  if(num2==0){	
+	  $("#f1_a"+num).hide();		 
+	  document.getElementById('f1_a'+num).value=$("#lf1_a"+num).text();
+	  $("#cf1_a"+num).show();
+	  }
+	  if(num2==1){
+		if(num3==0){
+	   $("#s1_a"+num).hide();		 
+	   document.getElementById('s1_a'+num).value=$("#ls1_a"+num).text();
+	   $("#cs1_a"+num).show();
+		}
+		if(num3==1){
+	   $("#s2_a"+num).hide();		 
+	   document.getElementById('s2_a'+num).value=$("#ls2_a"+num).text();
+	   $("#cs2_a"+num).show();
+		}
+	  }
+	  if(num2==3){	
+	  $("#lot_a"+num).hide();		 
+	  document.getElementById('lot_a'+num).value=$("#llot_a"+num).text();
+	  $("#clot_a"+num).show();
+	  }	  
+	 } 
+ } 
+  function ajestado(num,num2,num3,mares_sc,vares_sc,num4){
+	  if(num==0){
+		if(num3==1){
+		$("#f1_a"+mares_sc).hide();
+		}
+	   if(num2==1){
+	   $("#f1_a"+mares_sc).val(vares_sc);
+	   }
+	   if(num3==1){
+		$("#cf1_a"+mares_sc).show();
+	   }
+	  }
+	  if(num==1){
+        if(num4==0){			
+		if(num3==1){
+		$("#s1_a"+mares_sc).hide();
+		}
+	   if(num2==1){
+	   $("#s1_a"+mares_sc).val(vares_sc);
+	   }
+	   if(num3==1){
+		$("#cs1_a"+mares_sc).show();
+	   }	   
+	   }
+        if(num4==1){			
+		if(num3==1){
+		$("#s2_a"+mares_sc).hide();
+		}
+	   if(num2==1){
+	   $("#s2_a"+mares_sc).val(vares_sc);
+	   }
+	   if(num3==1){
+		$("#cs2_a"+mares_sc).show();
+	   }	   
+	   }
+	  }
+	  if(num==3){
+		if(num3==1){
+		$("#lot_a"+mares_sc).hide();
+		}
+	   if(num2==1){
+	   $("#lot_a"+mares_sc).val(vares_sc);
+	   }
+	   if(num3==1){
+		$("#clot_a"+mares_sc).show();
+	   }
+	  }	  
+ }
+ function aeother(num,num2,num3,num4){
+  if(num==0){
+   if(num3==0){
+   document.getElementById("f1_a"+num4).disabled=true;
+   }
+   if(num3==1){
+   document.getElementById("f1_a"+num4).disabled=false;
+   }
+  }
+  if(num==1){
+	if(num2==0){
+	   if(num3==0){
+	   document.getElementById("s1_a"+num4).disabled=true;
+	   }
+	   if(num3==1){
+	   document.getElementById("s1_a"+num4).disabled=false;
+	   }
+	}
+	if(num2==1){
+	   if(num3==0){
+	   document.getElementById("s2_a"+num4).disabled=true;
+	   }
+	   if(num3==1){
+	   document.getElementById("s2_a"+num4).disabled=false;
+	   }
+	}
+  }
+  if(num==3){
+   if(num3==0){
+   document.getElementById("lot_a"+num4).disabled=true;
+   }
+   if(num3==1){
+   document.getElementById("lot_a"+num4).disabled=false;
+   }
+  }  
+ } 
+function rev_XML(num){
+mostrar_cargando(0);
+
+var revxmlv;
+revxmlv=true;
+
+ if(xhr1.readyState!=0){
+ revxmlv=false;
+ }
+ for(i=0;i<acantidades.length;i++){
+  if(res_acantidades[i]==0){
+  revxmlv=false;
+  }
+ }
+ for(i=0;i<aestado.length;i++){
+  if(res_aestado[i]==0){
+  revxmlv=false;
+  }  
+ } 
+ for(i=0;i<ares_sc.length;i++){
+  if(ares_sc[i][0].readyState!=4){
+  revxmlv=false;
+  }
+  if(ares_sc[i][5]==undefined){
+   revxmlv=false;
+  }else{
+   if(ares_sc[i][5]==0){
+   revxmlv=false;
+   }
+  }
+ }
+ 
+if(revxmlv){
+ocultar_cargando(0);
+return true;
+}else{
+alert("There are item editing");	
+ocultar_cargando(0);
+return false;	
+}
+
+}
+function rscan(){
+	url = "articulo_lectura.php?num=1";
+	ancho = 800; alto = 560;
+	xpos=(screen.width/2)-(ancho/2);
+        ypos = 20;
+	ventana=window.open(url,'QR Read','toolbar=no,location=no,scrollbars=yes,menubar=yes,status=no,width='+ancho+',height='+alto+',top='+ypos+',left='+xpos);
+}
+function o_teclado(){
+$("#texto_oteclado").focus();
+}
+function mostrar_lcliente(){
+mostrar_cargando(0);
+document.getElementById("vlnombre").value="";
+document.getElementById("vlencargado").value="";
+mostrar_cargando(0);
+busq_lista();
+}
+function cerrarv_listc(){
+$("#contenedor_cliente").hide();
+estvcliente=0;
+}
+function list_lsel_cliente(num1,num2,num3){
+cerrarv_listc();
+estvcliente=0;
+document.getElementById("opc_tipo_tercero_s").value=num1;
+document.getElementById("opc_tipo_tercero_t").value=num2;
+document.getElementById("opc_tipo_tercero_v").value=num3;
+document.getElementById("tercero_nombre").value=document.getElementById("list_lsel_cliente_nombre"+num1).value;
+}
+function ajbotonlist(num){
+if((num==0)){
+var eposicion=$("#titulo_listado_items_p").css("position");
+if(eposicion!="relative"){
+$("#titulo_listado_items_p").css("position","relative");			
+$("#titulo_listado_items_p").css("top",0);
+$("#titulo_listado_items_p").css("z-index","0");
+$("#titulo_listado_items_p").css("width","100%");
+}
+var eposicion=$("#titulo_listado_items_p_t").css("position");
+if(eposicion!="relative"){
+$("#titulo_listado_items_p_t").css("position","relative");			
+$("#titulo_listado_items_p_t").css("top",0);
+$("#titulo_listado_items_p_t").css("z-index","0");
+$("#titulo_listado_items_p_t").css("width","100%");
+}
+}
+if((num==1)){
+var eposicion=$("#titulo_listado_items_p").css("position");
+if(eposicion!="fixed"){
+$("#titulo_listado_items_p").css("position","fixed");
+$("#titulo_listado_items_p").css("top","0");
+$("#titulo_listado_items_p").css("z-index","1");
+$("#titulo_listado_items_p").css("width",anlistitem);
+}
+var eposicion=$("#titulo_listado_items_p_t").css("position");
+if(eposicion!="fixed"){
+$("#titulo_listado_items_p_t").css("position","fixed");
+$("#titulo_listado_items_p_t").css("top","0");
+$("#titulo_listado_items_p_t").css("z-index","1");
+$("#titulo_listado_items_p_t").css("width",anlistitem_total);
+}
+}
+}
+function rmenu(){
+
+	var alnb=document.getElementById("titulo_listado_items_p_r").getBoundingClientRect();
+	if(alnb.top<-20){
+	ajbotonlist(1);
+	return;
+	}
+	if(alnb.top>=-20){
+	ajbotonlist(0);
+	return;
+	}
+	
+}
+function revisar_no_documento(){
+
+<?php
+if($bodega_id!=30){
+?>
+mostrar_cargando();
+
+var no_documento=document.getElementById("documento").value;
+
+var form_data_doc = new FormData();
+
+var xhr1_doc = new XMLHttpRequest();
+
+form_data_doc.append('consulta', 119);  
+form_data_doc.append('num1',no_documento);
+form_data_doc.append('num2','<?php echo $bodega_id;?>');
+form_data_doc.append('lan','1');
+
+xhr1_doc.open('POST','modelo_articulo_codigo_barras.php',true);
+xhr1_doc.send(form_data_doc);
+
+xhr1_doc.onreadystatechange=function(){
+ if(xhr1_doc.readyState==4){
+ 
+ var respuesta=xhr1_doc.response;
+
+   if(respuesta=="1"){
+   no_documento=document.getElementById("documento").value="";
+   alert("Connection error");
+   }
+   else{
+    if(respuesta=="2"){
+    alert("The document is already registered");
+    no_documento=document.getElementById("documento").value="";
+    }	   
+   }
+   
+ ocultar_cargando(); 
+ 
+ }
+}
+
+<?php
+}
+?>
+
+}
+function comp_resumen(){
+$("#label_documento").html(document.getElementById("documento").value);
+$("#label_fecha_doc").html(document.getElementById("documento_fecha").value);
+var c_select_mov_tipo=document.getElementById("movimiento");
+$("#label_mov_tipo").html(c_select_mov_tipo.options[c_select_mov_tipo.selectedIndex].text);
+$("#label_tercero").html(document.getElementById("tercero_nombre").value);
+}
+</script>
+<div width="100%" id="titulo_listado_items_p_r">
+</div>
+
+        <form name="formu" action="" enctype="multipart/form-data"  method="post" onSubmit="return false" autocomplete="off">
+        <input type="hidden" name="num" id="num">
+        <input type="hidden" name="num2" id="num2">
+		<input type="hidden" name="num3" id="num3" value="<?php echo $consecutivo;?>">
+		<input type="hidden" name="vnp" value="<?php echo $bodega_id;?>">
+
+                <div id="contenedor_cliente" class="borde_tabla" style="padding:0.8em;background-color:white;position:absolute;z-index:0;display:none;width:103%;height:20em;left:1%;top:5%;">
+                <table width="100%" cellpadding="1" cellspacing="1">
+				<tr bgcolor="#FFFFFF">
+<td>
+	  <table width="100%"  border="0" align="center" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="display:none;">
+        <tr>
+          <td align="right"><a href="javascript:cerrarv_list();" style="color:white;"><u><span class="textEncabezadoPagina" style="color:red;">Close [x]</span><u></a></td>
+        </tr>
+      </table>                        
+</td>		
+</tr>				
+              		<tr bgcolor="#FFFFFF">
+                		<td class="titleNegrillaTabla" align="center" style="padding-bottom:0.5em;padding-top:0.5em;">
+                		Client list
+                		</td>
+              		</tr>                
+			<tr  bgcolor="#FFFFFF" class="titleNegrillaTabla" id="tr_barcode4">			
+			<td valign="center">
+			<table width="100%" border="0" cellpadding="0" cellspacing="0">			
+			<tr bgcolor="#FFFFFF" class="titleNegrillaTabla" id="tr_barcode3">
+			<td align="left" width="50%">Name :&nbsp;</td>
+			<td align="left" width="50%">Manager :&nbsp;</td>
+			</tr>			
+			<tr bgcolor="#FFFFFF" class="titleNegrillaTabla">
+			<td valign="left">
+			<input type="text" name="vlnombre" id="vlnombre" onkeyup="javascript:busq_lista();" maxlength="50" class="textTextarea2">
+			</td>
+			<td valign="left">
+			<input type="text" name="vlencargado" id="vlencargado" onkeyup="javascript:busq_lista();" maxlength="50" class="textTextarea2">
+			</td>
+			</tr>
+			<tr style="">
+			<td colspan="3">
+			<div id="contenedor_slistac" style="width:100%;height:10em;">			
+			 <div id="contenedor_slist_cliente" style="width:100%;height:100%;overflow:auto;">
+			 <label class="textConNegrilla">Please input text to search</label>
+			 </div>
+			</div>
+			</td>			
+			</tr>
+			<tr bgcolor="#FFFFFF" class="titleNegrillaTabla" id="tr_barcode5">
+			<td colspan="2">
+			<div id="mensaje_listado_selc" style="display:inline;color:red;font-size:14;">&nbsp;</div>
+			</td>
+			</tr>			
+			<tr>
+			<td colspan="2" style="width:4m;padding-top:1em;" valign="middle">
+			<input type="button" id="bcancelara2l" class="button2" value="Cancel" onclick="javascript:cerrarv_listc();">
+			</td>			
+			</tr>
+			</table>
+			</td>			
+			</tr>
+                </table>
+                </div>
+		
+				<div id="contenedor_f1" style="display:none;background:#f2f4f4;">
+	  <table width="90%"  border="0" align="center" cellpadding="0" cellspacing="0" style="margin-bottom:0.3em;" bgcolor="#f2f4f4">
+		<tr>
+	  	<td align="right" colspan="2"><font style="" class="mensaje_bodega_nombre"><b><?php echo $bodega_nombre;?>&nbsp;STORE</b></font></td>
+        </tr>
+		<tr>
+		 <td align="left"><label class="titulo_texto">Input</label>&nbsp;&nbsp;&nbsp;</td>
+         <td align="right"><span class="textEncabezadoPagina">Inventory article Store: Add articles</span></td>
+        </tr>		
+      </table> 								
+				
+                <table width="100%" cellpadding="1" cellspacing="1">
+              		<tr bgcolor="#FFFFFF">
+                		<td class="classUser" align="center">
+                		Movement information
+                		</td>
+              		</tr>                
+			<tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode">
+			<td align="left">
+			 <table width="100%" style="margin-left:-0.15em;">
+			 <tr class="moduloDown">
+			 <td>
+			 Document :&nbsp;&nbsp;
+			 </td>
+			 </tr>			 
+			 <tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			 <td>
+			 <input type="text" name="documento" id="documento" onchange="javascript:revisar_no_documento();" maxlength="200" class="textTextarea2">
+			 </td>
+			 </tr>			 
+			 <tr class="moduloDown">
+			 <td>
+			 Document date:&nbsp;&nbsp;
+			 </td>
+			 </tr>			 
+			 <tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			 <td>
+			 <input type="text" name="documento_fecha" id="documento_fecha" onchange="javascript:;" readonly>
+			 </td>
+			 </tr>			 
+			 <tr class="moduloDown">
+			 <td>
+			 &nbsp;&nbsp;
+			 </td>
+			 </tr>
+			<?php
+			
+			if ($bodega_id!=4){
+			
+			?>			
+			 <tr class="moduloDown">
+			 <td>
+			 Relationship :&nbsp;&nbsp;
+			 </td>
+			 </tr>			 
+			 <tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			 <td>
+			 <div style="display:inline;">
+			 <input type="radio" name="opc_tipo_tercero" id="opcion_proveedor" value="0" checked>Supplier
+			 </div>
+			 <div style="display:inline;padding-left:0.2em;">
+			 <input type="radio" name="opc_tipo_tercero" id="opcion_cliente" value="0">Customer
+                <a href="javascript:mostrar_lcliente()">
+                <img src="recursos/buscar2.png" align="absMiddle" style="width:2em;height:2em;">
+                </a>			 
+			 </div>
+			 </td>			 
+			 </tr>			 
+			 <tr class="moduloDown">
+			 <td>
+			 <input type="hidden" id="tpterc" value="2">
+			 <input type="hidden" name="opc_tipo_tercero_s" id="opc_tipo_tercero_s">
+			 <input type="hidden" name="opc_tipo_tercero_t" id="opc_tipo_tercero_t">
+			 <input type="hidden" name="opc_tipo_tercero_v" id="opc_tipo_tercero_v">
+			 <div id="tipo_tercero">			 
+                <textarea id="tercero_nombre" class="textTextarea" onclick="" readonly>
+                </textarea>
+			 </div>
+			 </td>
+			 </tr>	
+			 <tr class="moduloDown">
+			 <td>
+			 &nbsp;&nbsp;
+			 </td>
+			 </tr>			 
+			 <tr class="moduloDown">
+			 <td>
+			 Movement type :&nbsp;&nbsp;
+			 </td>
+			 </tr>				 
+			 <tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			 <td>
+                                <?php 
+                                    $query_movimiento="SELECT MOVIMIENTO_ID,MOVIMIENTO_NOMBRE FROM movimiento_tipo WHERE MOVIMIENTO_TIPO='ENTRADA' AND MOVIMIENTO_NOMBRE!='INDEFINIDO'";
+                                    $movimiento=  nmysql2_query($query_movimiento,$link);
+                                    $salida_movimiento="<option value='21'>Otro</option>";
+                                    while ($row=  nmysql2_fetch_array($movimiento)){ 
+                                        if($row["MOVIMIENTO_ID"]!=27){
+                                        $salida_movimiento.="<option value='$row[MOVIMIENTO_ID]'>$row[MOVIMIENTO_NOMBRE]</option>";                                        
+                                        }
+                                    }
+                                    ?>
+                                    <select style='font-size:12px' name="movimiento" id="movimiento"><?php echo $salida_movimiento;?></select>
+			 </td>			 
+			 </tr>	 
+			 <tr class="moduloDown">
+			 <td>
+			 &nbsp;&nbsp;
+			 </td>
+			 </tr>	
+			<?php
+			
+			}
+			
+			?>
+			 </table>
+			</td> 
+			</tr>
+			  <tr bgcolor="#FFFFFF" class="moduloDown">
+			  <td align="left" bgcolor="#EEEEEE">
+			  
+				  <table width="100%">			
+				  <tr class="moduloDown">
+				  <td width="25%" >
+				  <font class="mensaje_required">* Required</font><div id="resultado_error" style="display:inline;width:100%;text-align:right;"><?php echo $mensaje_error;?></div>
+				  </td>
+				  <td width="75%" align="right">
+				  <input type="button" id="bsiquiente_l" value="Next" onclick="javascript:msiguiente();" class="button3" style="">
+				  </td>
+				  </tr>			
+                  </table>
+
+			  </td>
+			  </tr>		
+                </table>				
+				</div>            
+			
+			
+			
+			<div id="t_listado" style="width:100%;background-color:white;margin-top:-2%;font-size:1.5em;display:none;">&nbsp;</div>
+<table id="contenedor" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-left:-2%;display:none;" bgcolor="#f2f4f4">
+  <tr>
+    <td valign="top">
+	  <table width="90%"  border="0" align="center" cellpadding="0" cellspacing="0" style="margin-bottom:0.3em;">
+		<tr>
+	  	<td align="right" colspan="2"><font style="" class="mensaje_bodega_nombre"><b><?php echo $bodega_nombre;?>&nbsp;STORE</b></font></td>
+        </tr>
+		<tr>
+		 <td align="left"><label class="titulo_texto">Input</label>&nbsp;&nbsp;&nbsp;</td>
+         <td align="right"><span class="textEncabezadoPagina">Inventory article Store: Add articles</span></td>
+        </tr>		
+      </table>                        
+	  <div id="invart_tabla1">
+<?php 
+ $link = conectarBDD(); 
+ 
+
+?>
+        <table width="90%" border="0" align="center" cellpadding="0" cellspacing="0" bgcolor="">
+          <tr>
+            <td valign="top">						
+			  <table width="100%"  border="0" cellpadding="0" cellspacing="0" bgcolor="#C1D0D4">              
+			  <tr>
+                <td>
+                <div id="vista_previa_barcode" style="background-color:#FFFFFF;display:none;">
+                <div  style="background-color:#FFFFFF;">
+                 <svg id="img_barcode" class="vbarcode"></svg>
+                </div>
+                </div>
+                
+				
+                <div id="contenedor_barcode" style="display:none;">
+                
+                <table width="100%" cellpadding="1" cellspacing="1">
+              		<tr bgcolor="#FFFFFF">
+                		<td class="classUser" align="center">
+                		                		
+                		<table width="100%">
+                		<tr>
+                		<td align="left" valign="top" width="2%">
+                		<input type="button" id="bc_escaneo" value="Continue scanning" onclick="javascript:cescaneo(0);" class="button3" style="position:absolute;display:none;font-size:1.1em;">				
+                		<input type="button" id="bmlista" value="Scan" class="button5" style="font-size:1.1em;" onclick="javascript:rscan();">
+                		</td>
+                		<td class="classUser" align="center">
+                		Article Information
+                		</td>
+                		<td align="left" valign="middle" width="2%">
+                		<!--
+                		<table>
+                		<tr>
+                		<td>
+                		<input type="button" id="batras_l2" value="<-" onclick="javascript:matras();" class="button3" style="font-size:1.1em;">
+                		</td>
+                		<td>
+                		<input type="button" id="bsiquiente_l2" value="->" onclick="javascript:msiguiente();" class="button3" style="font-size:1.1em;">
+                		</td>
+                		</tr>
+                		</table>
+                		-->
+                		<!--<input type="button" id="bmlista" value="List" class="button5" style="font-size:1.1em;" onclick="javascript:pescaneo(1);">-->
+                		</td>
+                		</table>
+                		
+                		</td>
+              		</tr>                
+			<tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode">
+			<td align="left">
+			 <table width="100%" style="margin-left:-0.15em;">
+			 <tr class="moduloDown">
+			 <td>
+			 Barcode :&nbsp;&nbsp;
+			 </td>
+			 </tr>
+			 </table>
+			</td>
+			</tr>
+			<tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			<td><input type="text" name="barcode" id="barcode" onchange="javascript:mdatos_articulo();" maxlength="500" class="textTextarea2"><label id="barcode_required" class="moduloDown">*</label><label id="etiqueta_barcode"></label><div id="mensaje_barcode" style="display:inline;color:red;font-size:14;"></div></td>
+			</tr>   
+			<tr class="moduloDown">
+			 <td bgcolor="#FFFFFF" width="100%" align="left">
+				 <table  bgcolor="#FFFFFF">
+				 <tr bgcolor="#FFFFFF">
+				 <td class="textSinNegrilla">
+				 <div style="display:block;">
+				 
+				 <div style="display:inline-block;margin-bottom:0.8em;display:none;">
+				 <table  bgcolor="#FFFFFF">
+				 <tr bgcolor="#FFFFFF">
+				 <td class="textSinNegrilla" valign="top">
+				 <b>Quantity</b>
+				 </td>
+				 <td align="left">
+				 <input type="number" name="cantidad"  id="cantidad"  size="8" value="1" style="width:5em;" readonly>&nbsp;
+				 </td>
+				 </tr>
+				 </table>
+				 </div>
+				 
+				 <div style="display:inline-block;margin-bottom:0.8em;">
+				 <table  bgcolor="#FFFFFF">								 				 
+				 <tr bgcolor="#FFFFFF">
+				 <td align="right" valign="top">				 
+				 <b class="textSinNegrilla">State:</b>
+				 </td>
+				 <td align="right" class="textSinNegrilla">
+				 <label class="textSinNegrilla">Existent</label><input type="radio" name="estado"  id="e_existente" checked>
+				 <label class="textSinNegrilla">New</label><input type="radio" name="estado"  id="e_nuevo">
+				 <label class="textSinNegrilla">Used</label><input type="radio" name="estado" id="e_usado" >
+				 </td>
+				 </tr>
+				 </table>
+				 </div>
+				 
+				 </div>
+				 </td>
+				 </tr>
+				 </table>
+				 
+				 
+			 </td>
+			 </tr>			
+                </table>                
+                
+                <!--q-->
+                </div>
+
+				<div id="contenedor_f2" style="display:none;">								
+                <table width="100%" cellpadding="1" cellspacing="1">
+              		<tr bgcolor="#FFFFFF">
+                		<td class="classUser" align="center">
+                		Movement information
+                		</td>
+              		</tr>
+              		<tr bgcolor="#FFFFFF">
+              		<td>
+              		
+              <div style="background:#FFFFFF;display:block;">
+              
+              <div style="display:inline-block;">
+			  <table>
+			  <tr>
+			  <td class="moduloDown" valign="top">
+			  Document:
+			  </td>			  
+			  <td valign="top">
+			  &nbsp;<label id="label_documento" class="label_resumen"></label>
+			  </td>
+			  </tr>
+			  </table>
+			  </div>
+			  
+			  <div style="display:inline-block;">
+			  <table>
+			  <tr>			  
+			  <td class="moduloDown" valign="top">
+			  Date:
+			  </td>            
+			  <td valign="top">
+			  &nbsp;<label id="label_fecha_doc" class="label_resumen"></label>
+			  </td>
+			  </tr>
+			  </table>
+			  </div>
+			  
+			  <div style="display:inline-block;">
+			  <table>
+			  <tr>			  
+			  <td class="moduloDown" valign="top">			  
+              Movement type:
+			  </td>			  
+			  <td valign="top">
+			  &nbsp;<label id="label_mov_tipo" class="label_resumen"></label>
+			  </td>
+			  </tr>
+			  </table>
+			  </div>
+			  
+			  <table>
+			  <tr>
+			  <td class="moduloDown" valign="top">
+			  Relationship:
+			  </td>
+			  <td valign="top">
+			  &nbsp;<label id="label_tercero"></label>
+			  </td>
+			  </tr>
+			  </table>
+              
+              </div>              		
+              		
+              		</td>
+              		</tr>              		
+			<tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode">
+			<td align="left">
+			 <table width="100%" style="margin-left:-0.15em;">
+			 <tr class="moduloDown">
+			 <td>
+			 Observations :&nbsp;&nbsp;
+			 </td>
+			 </tr>
+			 <tr bgcolor="#FFFFFF" class="moduloDown" id="tr_barcode2">
+			 <td>
+			 <textarea id="observaciones" name="observaciones" rows="3" maxlength="60000" class="textTextarea"></textarea>
+			 </td>
+			 </tr>
+			 </table>
+			</td> 
+			</tr>
+                </table>				                            
+				</div>	
+				
+            <div id="listado_items_p" style="display:none;background:white;">
+            <table width="100%" id="titulo_listado_items_p" bgcolor="#FFFFFF" cellspacing="0" style="">
+            <tr>
+            <td width="90%">
+            <label class="classUser">&nbsp;List item Detail</label><br><br>
+            </td>
+            <td>
+            <input type="button" id="batras2" value="Back" onclick="javascript:matras();" class="button3" style="display:none;">
+			</td>
+			<td>
+			&nbsp;&nbsp;&nbsp;
+			</td>
+			<td>
+			<input type="button" id="bsiquiente2" value="Next" onclick="javascript:msiguiente();" class="button3" style="display:none;">
+			</td>
+            </tr>
+            </table>
+
+			 <div id="listado_items" width="95%" style="">
+			 </div>            
+            </div>
+            
+            <div id="listado_items_p_t" style="display:none;background:white;">
+            <table width="100%" id="titulo_listado_items_p_t" bgcolor="#FFFFFF" cellspacing="0" style="">
+            <tr>
+            <td width="90%">
+            <label class="classUser">&nbsp;List item Total</label><br><br>
+            </td>
+            <td>
+            <div id="boton_total_atras"><input type="button" id="batras3" value="Back" onclick="javascript:matras();" class="button3" style="display:none;"></div>
+			</td>
+			<td>
+			&nbsp;&nbsp;&nbsp;
+			</td>
+			<td>
+			<div id="boton_total_siguiente"><input type="button" id="bsiquiente3" value="Next" onclick="javascript:msiguiente();" class="button3" style="display:none;"></div>
+			</td>
+            </tr>
+            </table>
+            
+			 <div id="listado_items_t" width="95%" style="">
+			 </div>            
+            </div>
+
+<div id="ocultar_teclado" style="opacity:0.5;top:3em;position:fixed;z-index:0;color:red;text-align:right;">
+<input type="button" onclick="javascript:o_teclado();" style="background:url('recursos/ocultar_teclado.png');background-repeat:no-repeat;background-size:40px 40px;width:40px;height:40px;"><input type="text" id="texto_oteclado" disabled="disabled" title="Hide keyboard in mobile device" hidden>
+</div>
+            
+		 				
+				
+                </td>
+              </tr>
+			  
+			  <tr bgcolor="#FFFFFF" class="moduloDown">
+			  <td align="left" bgcolor="#EEEEEE">
+				  <table width="100%">
+				  <tr class="moduloDown">
+				  <td width="25%" >
+				  <font class="mensaje_required">* Required</font><div id="resultado_error" style="display:inline;width:100%;text-align:right;"><?php echo $mensaje_error;?></div>
+				  </td>
+				  <td width="75%" align="right">
+				  <br>
+				  <div id="botones" style="">
+				  <input type="button" id="batras" value="Back" onclick="javascript:matras();" class="button3" style="display:none;">
+				  &nbsp;&nbsp;&nbsp;
+				  <input type="button" id="bsiquiente" value="Next" onclick="javascript:msiguiente();" class="button3" style="display:none;">
+				  <input type="button" id="bguardar" value="Save input" onclick="javascript:esok(1);" class="button3" style="display:none;">
+				  </div>				  
+				  </td>
+				  </tr>
+				  </table>
+			  </td>
+			  </tr>
+            </table>
+		    		</td>
+					</tr>         
+        </table>
+
+		</div>
+		
+		<div id="invart_tabla2" style="display:none;">
+			<table width="90%" border="0" align="center" cellpadding="0" cellspacing="0" bgcolor="">
+			<tr>
+			<td>
+			<input type="button" id="bc_escaneo2" value="Continue scanning" onclick="javascript:cescaneo(1);" class="button2">
+			</td>
+			</tr>
+			</table>		
+		</div>						
+		
+		</td>
+  </tr>
+</table>
+</div>
+</form>
+<div id="mensaje_cargando" style="top:0px;width:100%;height:100%;position:fixed;z-index:0;color:red;font-size:20;text-align:center;">
+<img src="recursos/cargando.gif" style="width:150px;height:150px;">
+</div>
+</body>
+</html>
+
